@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>İnşaat Muhasebe</title>
+  <style>
+    :root { --gap: 14px; --radius: 14px; --line:#e7ebf0; --ink:#0f172a; --muted:#64748b; --bg:#f7f8fb; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+
+    /* header */
+    header { position: sticky; top:0; z-index:10; background:#ffffffcc; backdrop-filter: blur(6px); border-bottom:1px solid var(--line); }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin: 0; }
+    .sub { color: var(--muted); font-size: 13px; }
+
+    /* tabs */
+    nav { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    nav button { border:1px solid var(--line); background:#fff; padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:600; }
+    nav button.active { background: var(--ink); color:#fff; border-color: var(--ink); }
+
+    /* layout */
+    main { padding: 18px 16px 60px; }
+    .grid { display:grid; grid-template-columns: 1.05fr 1.6fr; gap: var(--gap); align-items:start; }
+    .card { background:#fff; border:1px solid var(--line); border-radius: var(--radius); padding: 14px; box-shadow: 0 1px 0 rgba(15,23,42,.03); }
+    .card h2 { font-size: 18px; margin:0 0 8px; }
+
+    /* form */
+    form { display:grid; gap:10px; }
+    label { display:block; font-size:12px; color: var(--muted); margin-bottom:6px; }
+    input, select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { padding:9px 12px; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; }
+    .btn.primary { background: var(--ink); color:#fff; border-color: var(--ink); }
+    .btn.ghost { background: transparent; }
+    .btn.danger { color:#b91c1c; background:#fff5f5; border-color:#fecaca; }
+
+    /* table */
+    table { width:100%; border-collapse: collapse; font-size:14px; }
+    th, td { padding:10px 8px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align: top; }
+    th { color: var(--muted); font-weight:700; background:#fafafa; position: sticky; top:0; z-index:0; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .empty { padding:8px 0; color: var(--muted); font-style: italic; }
+
+    /* toast */
+    .toast { position: fixed; right: 16px; bottom: 16px; background: var(--ink); color:#fff; padding: 10px 12px; border-radius: 12px; opacity: 0; transform: translateY(8px); transition: .25s; box-shadow: 0 10px 30px rgba(2,6,23,.25); }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* filter bar */
+    .filters { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>İnşaat Muhasebe</h1>
+      <div class="sub">Uç noktalar: <code>/api/calisanlar</code>, <code>/api/avanslar</code>, <code>/api/gunluk-calisma</code>, <code>/rapor</code></div>
+      <nav>
+        <button class="active" data-page="calisan">Çalışanlar</button>
+        <button data-page="avans">Avanslar</button>
+        <button data-page="gunluk">Günlük Çalışma</button>
+        <button data-page="rapor">Rapor</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- ÇALIŞANLAR -->
+    <section id="page-calisan" class="grid">
+      <div class="card">
+        <h2>Çalışan Ekle / Güncelle</h2>
+        <form id="form-calisan">
+          <div class="row">
+            <div>
+              <label>Çalışan ID (güncelleme)</label>
+              <input type="number" id="calisan-id" placeholder="boş = yeni" />
+            </div>
+            <div>
+              <label>Ad</label>
+              <input type="text" id="calisan-ad" required />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Günlük Ücret (TL)</label>
+              <input type="number" step="0.01" id="calisan-ucret" required />
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="submit">Kaydet</button>
+            <button class="btn" type="button" id="calisan-clear">Temizle</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Çalışanlar</h2>
+        <div id="calisan-empty" class="empty" style="display:none">Henüz kayıt yok.</div>
+        <table id="tbl-calisan"><thead><tr><th>ID</th><th>Ad</th><th>Günlük Ücret</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- AVANSLAR -->
+    <section id="page-avans" class="grid" style="display:none">
+      <div class="card">
+        <h2>Avans Ekle</h2>
+        <form id="form-avans">
+          <div class="row">
+            <div>
+              <label>Çalışan</label>
+              <select id="avans-calisan" required></select>
+            </div>
+            <div>
+              <label>Tarih</label>
+              <input type="date" id="avans-tarih" required />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Tutar (TL)</label>
+              <input type="number" step="0.01" id="avans-tutar" required />
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="submit">Kaydet</button>
+            <button class="btn" type="button" id="avans-clear">Temizle</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="filters">
+          <div>
+            <label>Çalışana göre filtrele</label>
+            <select id="avans-filtre-calisan"></select>
+          </div>
+          <button class="btn" id="avans-filtre-temizle" type="button">Tüm Avansları Göster</button>
+        </div>
+        <div style="height:8px"></div>
+        <div id="avans-empty" class="empty" style="display:none">Kayıt yok.</div>
+        <table id="tbl-avans"><thead><tr><th>ID</th><th>Çalışan</th><th>Tarih</th><th>Tutar</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- GÜNLÜK ÇALIŞMA -->
+    <section id="page-gunluk" class="grid" style="display:none">
+      <div class="card">
+        <h2>Günlük Çalışma Ekle</h2>
+        <form id="form-gunluk">
+          <div class="row">
+            <div>
+              <label>Çalışan</label>
+              <select id="gunluk-calisan" required></select>
+            </div>
+            <div>
+              <label>Tarih</label>
+              <input type="date" id="gunluk-tarih" required />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Durum</label>
+              <select id="gunluk-durum" required>
+                <option value="GELDI">GELDI</option>
+                <option value="GELMEDI">GELMEDI</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="submit">Kaydet</button>
+            <button class="btn" type="button" id="gunluk-clear">Temizle</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="filters">
+          <div>
+            <label>Çalışan</label>
+            <select id="gunluk-filtre-calisan"></select>
+          </div>
+          <div>
+            <label>Tarih</label>
+            <input type="date" id="gunluk-filtre-tarih" />
+          </div>
+          <button class="btn" id="gunluk-filtre-uygula" type="button">Filtrele</button>
+          <button class="btn" id="gunluk-filtre-temizle" type="button">Temizle</button>
+        </div>
+        <div style="height:8px"></div>
+        <div id="gunluk-empty" class="empty" style="display:none">Kayıt yok.</div>
+        <table id="tbl-gunluk"><thead><tr><th>ID</th><th>Çalışan</th><th>Tarih</th><th>Durum</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- RAPOR -->
+    <section id="page-rapor" class="grid" style="display:none">
+      <div class="card">
+        <h2>Aylık Rapor</h2>
+        <form id="form-rapor" class="filters">
+          <div>
+            <label>Dönem</label>
+            <input type="month" id="rapor-donem" required />
+          </div>
+          <div>
+            <label>Çalışan (opsiyonel)</label>
+            <select id="rapor-calisan"></select>
+          </div>
+          <button class="btn primary" type="submit">Getir</button>
+          <button class="btn" id="rapor-temizle" type="button">Temizle</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Sonuç</h2>
+        <div id="rapor-empty" class="empty" style="display:none">Henüz rapor çekilmedi.</div>
+        <table id="tbl-rapor" style="display:none"><thead>
+          <tr><th>Çalışan</th><th>Dönem</th><th>Gün</th><th>Günlük Ücret</th><th>Hakediş</th><th>Toplam Avans</th><th>Net Maaş</th></tr>
+        </thead><tbody></tbody></table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast">Kaydedildi</div>
+
+  <script>
+    // -------- Utilities --------
+    const fmtTL = (n) => new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', maximumFractionDigits:2 }).format(Number(n||0));
+    const qs = (sel, el=document) => el.querySelector(sel);
+    const qsa = (sel, el=document) => [...el.querySelectorAll(sel)];
+    const showToast = (msg) => { const t=qs('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1600); };
+
+    // Base endpoints (backend ile birebir)
+    const API = {
+      calisanlar: '/api/calisanlar',
+      avanslar: '/api/avanslar',
+      gunluk: '/api/gunluk-calisma',
+      rapor: '/rapor'
+    };
+
+    async function http(method, url, body){
+      const res = await fetch(url, { method, headers: body ? { 'Content-Type':'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+      if(!res.ok){
+        let msg = 'İstek başarısız ('+res.status+')';
+        try { const data = await res.json(); msg = data.message || msg; } catch(err) {}
+        throw new Error(msg);
+      }
+      const ct = res.headers.get('content-type')||'';
+      return ct.includes('application/json') ? res.json() : res.text();
+    }
+
+    // -------- Tabs --------
+    qsa('nav button').forEach(btn=>btn.addEventListener('click', ()=>{
+      qsa('nav button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const page = btn.dataset.page;
+      qsa('main section').forEach(s=>s.style.display = s.id === 'page-'+page ? '' : 'none');
+      // lazy load lists
+      if(page==='calisan') loadCalisanlar();
+      if(page==='avans') { loadCalisanSelects(); loadAvanslar(); }
+      if(page==='gunluk') { loadCalisanSelects(); loadGunluk(); }
+    }));
+
+    // -------- ÇALIŞANLAR --------
+    async function loadCalisanlar(){
+      const data = await http('GET', API.calisanlar);
+      const tbody = qs('#tbl-calisan tbody');
+      tbody.innerHTML = '';
+      if(!data.length){ qs('#calisan-empty').style.display=''; return; }
+      qs('#calisan-empty').style.display='none';
+      data.forEach(c=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${c.id||''}</td><td>${c.ad||''}</td><td>${fmtTL(c.gunlukUcret)}</td>
+                        <td><button class="btn ghost" data-edit="${c.id}">Düzenle</button>
+                            <button class="btn danger" data-del="${c.id}">Sil</button></td>`;
+        tbody.appendChild(tr);
+      });
+      // actions
+      tbody.querySelectorAll('[data-edit]').forEach(b=>b.onclick = ()=>fillCalisanForm(data.find(x=>x.id==b.dataset.edit)));
+      tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick = ()=>delCalisan(b.dataset.del));
+      // sync selects used elsewhere
+      syncCalisanOptions(data);
+    }
+
+    function fillCalisanForm(c){
+      qs('#calisan-id').value = c.id||'';
+      qs('#calisan-ad').value = c.ad||'';
+      qs('#calisan-ucret').value = c.gunlukUcret||'';
+    }
+
+    async function delCalisan(id){
+      if(!confirm('Bu çalışan silinsin mi?')) return;
+      await http('DELETE', `${API.calisanlar}/${id}`);
+      showToast('Silindi');
+      loadCalisanlar();
+    }
+
+    qs('#form-calisan').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        id: valNum('#calisan-id'),
+        ad: qs('#calisan-ad').value.trim(),
+        gunlukUcret: Number(qs('#calisan-ucret').value)
+      };
+      try{
+        await http('POST', API.calisanlar, payload);
+        showToast('Çalışan kaydedildi');
+        qs('#form-calisan').reset();
+        loadCalisanlar();
+      }catch(err){ alert(err.message); }
+    });
+    qs('#calisan-clear').onclick = ()=>qs('#form-calisan').reset();
+
+    // -------- AVANSLAR --------
+    async function loadAvanslar(calisanId){
+      const url = calisanId ? `${API.avanslar}?calisanId=${calisanId}` : API.avanslar;
+      const data = await http('GET', url);
+      const tbody = qs('#tbl-avans tbody');
+      tbody.innerHTML='';
+      if(!data.length){ qs('#avans-empty').style.display=''; return; }
+      qs('#avans-empty').style.display='none';
+      data.forEach(a=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${a.id||''}</td><td>${safeName(a.calisan)}</td><td>${a.tarih||''}</td><td>${fmtTL(a.tutar)}</td>
+                        <td><button class="btn danger" data-del="${a.id}">Sil</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delAvans(b.dataset.del));
+    }
+
+    async function delAvans(id){
+      if(!confirm('Avans kaydı silinsin mi?')) return;
+      await http('DELETE', `${API.avanslar}/${id}`);
+      showToast('Silindi');
+      const sel = qs('#avans-filtre-calisan');
+      const cid = sel.value || null;
+      loadAvanslar(cid);
+    }
+
+    qs('#form-avans').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const cid = qs('#avans-calisan').value;
+      const payload = {
+        calisan: { id: Number(cid) },
+        tarih: qs('#avans-tarih').value,
+        tutar: Number(qs('#avans-tutar').value)
+      };
+      try{
+        await http('POST', API.avanslar, payload);
+        showToast('Avans kaydedildi');
+        qs('#form-avans').reset();
+        const f = qs('#avans-filtre-calisan');
+        loadAvanslar(f.value || null);
+      }catch(err){ alert(err.message); }
+    });
+
+    qs('#avans-clear').onclick = ()=>qs('#form-avans').reset();
+    qs('#avans-filtre-calisan').addEventListener('change', (e)=>loadAvanslar(e.target.value||null));
+    qs('#avans-filtre-temizle').onclick = ()=>{ qs('#avans-filtre-calisan').value=''; loadAvanslar(); };
+
+    // -------- GÜNLÜK --------
+    async function loadGunluk(params={}){
+      const url = new URL(API.gunluk, location.origin);
+      if(params.calisanId) url.searchParams.set('calisanId', params.calisanId);
+      if(params.tarih) url.searchParams.set('tarih', params.tarih);
+      const data = await http('GET', url.pathname + (url.search||''));
+      const tbody = qs('#tbl-gunluk tbody');
+      tbody.innerHTML='';
+      if(!data.length){ qs('#gunluk-empty').style.display=''; return; }
+      qs('#gunluk-empty').style.display='none';
+      data.forEach(g=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${g.id||''}</td><td>${safeName(g.calisan)}</td><td>${g.tarih||''}</td><td>${g.durum||''}</td>
+                        <td><button class=\"btn danger\" data-del=\"${g.id}\">Sil</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delGunluk(b.dataset.del));
+    }
+
+    async function delGunluk(id){
+      if(!confirm('Günlük çalışma kaydı silinsin mi?')) return;
+      await http('DELETE', `${API.gunluk}/${id}`);
+      showToast('Silindi');
+      applyGunlukFilter();
+    }
+
+    qs('#form-gunluk').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        calisan: { id: Number(qs('#gunluk-calisan').value) },
+        tarih: qs('#gunluk-tarih').value,
+        durum: qs('#gunluk-durum').value
+      };
+      try{
+        await http('POST', API.gunluk, payload);
+        showToast('Kayıt eklendi');
+        qs('#form-gunluk').reset();
+        applyGunlukFilter();
+      }catch(err){ alert(err.message); }
+    });
+
+    function applyGunlukFilter(){
+      const cid = qs('#gunluk-filtre-calisan').value || null;
+      const t   = qs('#gunluk-filtre-tarih').value || null;
+      loadGunluk({ calisanId: cid, tarih: t });
+    }
+    qs('#gunluk-filtre-uygula').onclick = applyGunlukFilter;
+    qs('#gunluk-filtre-temizle').onclick = ()=>{ qs('#gunluk-filtre-calisan').value=''; qs('#gunluk-filtre-tarih').value=''; loadGunluk(); };
+
+    // -------- RAPOR --------
+    qs('#form-rapor').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const ym = qs('#rapor-donem').value; // yyyy-MM
+      if(!ym) return alert('Dönem zorunlu');
+      const cid = qs('#rapor-calisan').value;
+      let url = '';
+      if(cid){ url = `${API.rapor}/aylik/${cid}?donem=${ym}`; } else { url = `${API.rapor}/aylik?donem=${ym}`; }
+      try{
+        const data = await http('GET', url);
+        renderRapor(Array.isArray(data) ? data : [data]);
+      }catch(err){ alert(err.message); }
+    });
+    qs('#rapor-temizle').onclick = ()=>{ qs('#form-rapor').reset(); qs('#tbl-rapor').style.display='none'; qs('#rapor-empty').style.display=''; };
+
+    function renderRapor(list){
+      const tbody = qs('#tbl-rapor tbody');
+      tbody.innerHTML='';
+      if(!list.length){ qs('#tbl-rapor').style.display='none'; qs('#rapor-empty').style.display=''; return; }
+      qs('#rapor-empty').style.display='none';
+      qs('#tbl-rapor').style.display='';
+      list.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.adSoyad}</td><td>${r.donem}</td><td>${r.gunSayisi}</td><td>${fmtTL(r.gunlukUcret)}</td><td>${fmtTL(r.toplamHakEdis)}</td><td>${fmtTL(r.toplamAvans)}</td><td><b>${fmtTL(r.netMaas)}</b></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // -------- Helpers --------
+    function valNum(sel){ const v = qs(sel).value; return v === '' ? null : Number(v); }
+    function safeName(c){ return c && (c.ad || (c.firstName||'')) ? (c.ad || c.firstName) : '-'; }
+
+    // Populate all employee selects from current list
+    function syncCalisanOptions(list){
+      const opts = [ '<option value="">— Seç —</option>' ].concat(list.map(c=>`<option value="${c.id}">${c.ad}</option>`)).join('');
+      ['#avans-calisan','#avans-filtre-calisan','#gunluk-calisan','#gunluk-filtre-calisan','#rapor-calisan']
+        .forEach(sel=>{ const el = qs(sel); if(el) el.innerHTML = opts; });
+    }
+
+    async function loadCalisanSelects(){
+      try { const data = await http('GET', API.calisanlar); syncCalisanOptions(data); } catch(e){}
+    }
+
+    // initial boot
+    (async function init(){
+      // bugün
+      const today = new Date().toISOString().slice(0,10);
+      ['#avans-tarih','#gunluk-tarih','#gunluk-filtre-tarih'].forEach(sel=>{ const el = qs(sel); if(el && !el.value) el.value = today; });
+      // bu ay
+      const ym = new Date().toISOString().slice(0,7);
+      const r = qs('#rapor-donem'); if(r) r.value = ym;
+      await loadCalisanlar();
+      await loadCalisanSelects();
+      await loadAvanslar();
+      await loadGunluk();
+    })();
+  </script>
+</body>
+</html>
