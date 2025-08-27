@@ -135,16 +135,16 @@ Or serve it via Spring Boot (already included in static resources).
 ## 📸 Screenshots
 
 ### Employee List  
-![Employee List](ScreenShots/Calisanlar.png)  
+![Employee List](src/ScreenShots/Calisanlar.png)  
 
 ### Advance Payment Form  
-![Advance Form](ScreenShots/Avanslar.png)  
+![Advance Form](src/ScreenShots/Avanslar.png)  
 
 ### Daily Work Tracking  
-![Daily Work](ScreenShots/GunlukCalisma.png)  
+![Daily Work](src/ScreenShots/GunlukCalisma.png)  
 
 ### Monthly Report  
-![Monthly Report](ScreenShots/RaporEkranı.png)  
+![Monthly Report](src/ScreenShots/RaporEkranı.png)  
 
 ------------------------------------------------------------------------
 
